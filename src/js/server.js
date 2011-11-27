@@ -25,6 +25,14 @@ function zmqServer()
 {
     http.createServer(function (req, res) {
         socket.send("40");
+
+        // All requests are receiving the same message.  Need a
+        // request "serial number" or identifier, and an event source
+        // that recieves messages, checks the serial, and then
+        // dispatches an event to the correct callback for a
+        // particular request.  The serial will have to be included in
+        // the message sent to the service, and sent from the service
+        // back here as well.
         socket.on('message', function(data) {
             res.writeHead(200, {'Content-Type': 'text/plain'});
             res.end(data.toString());
