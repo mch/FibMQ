@@ -30,12 +30,17 @@ MessageDispatcher.prototype.execFib = function(n, callback)
 
     var msg = serial.toString() + " " + n.toString();
     this._serialCallbacks[serial] = callback;
+
+    console.log("Sending: " + msg.toString());
+    // send may block if there are no processes able to process the
+    // message, so we should check are return a 503 if necessary,
+    // maybe after waiting a few seconds.
     socket.send(msg);
 }
 
 MessageDispatcher.prototype.dispatchMessage = function(data)
 {
-    console.log(data.toString());
+    console.log("Received: " + data.toString());
     var dataList = data.toString().split(" ");
     if (dataList.length != 2)
         return;
@@ -47,6 +52,7 @@ MessageDispatcher.prototype.dispatchMessage = function(data)
     {
         var callback = this._serialCallbacks[serial];
         callback(body);
+        delete this._serialCallbacks[serial];
     }
 }
 

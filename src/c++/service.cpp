@@ -20,28 +20,44 @@ int main(int argc, char** argv)
     socket.bind("tcp://*:5555");
     //socket.bind("icp:///tmp/fib/0");
 
-    zmq::message_t message(255);
-
     while (1)
     {
+        zmq::message_t message;
+            
         if (socket.recv(&message, 0))
         {
             char* data = reinterpret_cast<char*>(message.data());
-            std::stringstream ss(data);
+            data[message.size()] = 0;
+
+            // Copy the data out and null terminate it.
+            char* buffer = new char[message.size()];
+            memcpy(buffer, message.data(), message.size() - 1);
+            buffer[message.size()] = 0;
+            
             int serial = 0;
-            ss >> serial;
             int n = 0;
-            ss >> n;
+
+            {
+                std::stringstream ss(buffer);
+                ss >> serial;
+                ss >> n;
+            }
+            delete buffer;
+            buffer = 0;
+            
             std::cout << "serial: " << serial << ", n: " << n << std::endl;
 
             int r = fibonacci(n);
 
-            char buffer[255];
-            int msgLen = snprintf(buffer, 255, "%d %d", serial, r);
+            int msgLen = snprintf(buffer, 0, "%d %d", serial, r);
+            buffer = new char[msgLen + 1];
+            snprintf(buffer, msgLen + 1, "%d %d", serial, r);
             
             zmq::message_t outMessage(msgLen);
             void* outData = outMessage.data();
             memcpy(outData, buffer, msgLen); // not sending a null terminator
+            delete buffer;
+            buffer = 0;
             
             if (!socket.send(outMessage, 0))
             {
