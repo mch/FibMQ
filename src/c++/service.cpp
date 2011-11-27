@@ -28,8 +28,7 @@ int main(int argc, char** argv)
             char* data = reinterpret_cast<char*>(message.data());
             int n = atoi(data);
 
-            //int r = fibonacci(n);
-            int r = 42;
+            int r = fibonacci(n);
 
             zmq::message_t outMessage(255);
             char* outData = reinterpret_cast<char*>(outMessage.data());
