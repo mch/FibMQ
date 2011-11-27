@@ -1,5 +1,10 @@
 // partially stolen from  http://teddziuba.com/2011/10/node-js-is-cancer.html
 
+var http = require("http");
+var zmq = require("zmq");
+var events = require("events");
+var url = require('url');
+
 function fibonacci(n) {
     if (n < 2)
         return 1;
@@ -7,11 +12,50 @@ function fibonacci(n) {
         return fibonacci(n-2) + fibonacci(n-1);
 }
 
-var http = require("http");
-var zmq = require("zmq");
+function MessageDispatcher() 
+{
+    events.EventEmitter.call(this);
+    this._nextSerial = 0;
+    this._serialCallbacks = {};
+
+    return this;
+}
+
+MessageDispatcher.prototype = Object.create( events.EventEmitter.prototype );
+
+MessageDispatcher.prototype.execFib = function(n, callback) 
+{
+    var serial = this._nextSerial;
+    this._nextSerial++;
+
+    var msg = serial.toString() + " " + n.toString();
+    this._serialCallbacks[serial] = callback;
+    socket.send(msg);
+}
+
+MessageDispatcher.prototype.dispatchMessage = function(data)
+{
+    console.log(data.toString());
+    var dataList = data.toString().split(" ");
+    if (dataList.length != 2)
+        return;
+
+    var serial = dataList[0];
+    var body = dataList[1];
+
+    if (serial in this._serialCallbacks)
+    {
+        var callback = this._serialCallbacks[serial];
+        callback(body);
+    }
+}
 
 var socket = zmq.createSocket('req');
 socket.connect("tcp://127.0.0.1:5555");
+
+socket.on('error', function(error) {
+    console.error(error.toString());
+});
 
 function blockingServer()
 {
@@ -23,20 +67,27 @@ function blockingServer()
 
 function zmqServer()
 {
-    http.createServer(function (req, res) {
-        socket.send("40");
+    var dispatcher = new MessageDispatcher;
+    socket.on('message', function(data) {
+        dispatcher.dispatchMessage(data)
+    });
 
-        // All requests are receiving the same message.  Need a
-        // request "serial number" or identifier, and an event source
-        // that recieves messages, checks the serial, and then
-        // dispatches an event to the correct callback for a
-        // particular request.  The serial will have to be included in
-        // the message sent to the service, and sent from the service
-        // back here as well.
-        socket.on('message', function(data) {
-            res.writeHead(200, {'Content-Type': 'text/plain'});
-            res.end(data.toString());
-        })
+    http.createServer(function (req, res) {
+        var params = url.parse(req.url, true);
+        var queryParams = params['query'];
+        if ('n' in queryParams)
+        {
+            var n = params['query']['n'];
+            dispatcher.execFib(n, function(data) {
+                res.writeHead(200, {'Content-Type': 'text/plain'});
+                res.end(data.toString());
+            })
+        }
+        else
+        {
+            res.writeHead(400);
+            res.end();
+        }
     }).listen(1337, "127.0.0.1");
 }
 

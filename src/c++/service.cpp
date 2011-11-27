@@ -3,6 +3,7 @@
 
 #include <zmq.hpp>
 #include <iostream>
+#include <sstream>
 
 int fibonacci(int n) {
     if (n < 2)
@@ -26,14 +27,22 @@ int main(int argc, char** argv)
         if (socket.recv(&message, 0))
         {
             char* data = reinterpret_cast<char*>(message.data());
-            int n = atoi(data);
+            std::stringstream ss(data);
+            int serial = 0;
+            ss >> serial;
+            int n = 0;
+            ss >> n;
+            std::cout << "serial: " << serial << ", n: " << n << std::endl;
 
             int r = fibonacci(n);
 
-            zmq::message_t outMessage(255);
-            char* outData = reinterpret_cast<char*>(outMessage.data());
-            snprintf(outData, 255, "%d\0", r);
-
+            char buffer[255];
+            int msgLen = snprintf(buffer, 255, "%d %d", serial, r);
+            
+            zmq::message_t outMessage(msgLen);
+            void* outData = outMessage.data();
+            memcpy(outData, buffer, msgLen); // not sending a null terminator
+            
             if (!socket.send(outMessage, 0))
             {
                 // Failed to send the message.
